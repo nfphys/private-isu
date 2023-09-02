@@ -101,24 +101,56 @@ module Isuconp
 
       def make_posts(results, all_comments: false)
         posts = []
-        results.to_a.each do |post|
-          post[:comment_count] = db.prepare('SELECT COUNT(*) AS `count` FROM `comments` WHERE `post_id` = ?').execute(
-            post[:id]
-          ).first[:count]
 
-          query = 'SELECT * FROM `comments` WHERE `post_id` = ? ORDER BY `created_at` DESC'
-          unless all_comments
-            query += ' LIMIT 3'
+        post_ids = results.to_a.map{|post| post[:id]}
+
+        comments =
+          if post_ids.length > 0
+            db.prepare("SELECT * FROM `comments` WHERE `post_id` IN (#{(['?'] * post_ids.length).join(",")}) ORDER BY `created_at` DESC").execute(
+              *post_ids
+            ).to_a
+          else
+            []
           end
-          comments = db.prepare(query).execute(
-            post[:id]
-          ).to_a
-          comments.each do |comment|
-            comment[:user] = db.prepare('SELECT * FROM `users` WHERE `id` = ?').execute(
-              comment[:user_id]
-            ).first
+
+        comment_user_ids = comments.map{|comment| comment[:user_id]}
+        comment_users = 
+          if comment_user_ids.length > 0
+            db.prepare("SELECT * FROM `users` WHERE `id` IN (#{(['?'] * comment_user_ids.length).join(",")})").execute(
+              *comment_user_ids
+            ).to_a
+          else
+            []
           end
-          post[:comments] = comments.reverse
+        comment_users_by_id = comment_users.group_by{|user| user[:id]}
+
+        comments.each do |comment|
+          comment[:user] = comment_users_by_id[comment[:user_id]]&.first
+        end
+        comments_by_post_id = comments.group_by{|comment| comment[:post_id]}
+
+        results.to_a.each do |post|
+          # post[:comment_count] = db.prepare('SELECT COUNT(*) AS `count` FROM `comments` WHERE `post_id` = ?').execute(
+          #   post[:id]
+          # ).first[:count]
+          post_comments = comments_by_post_id[post[:id]] || []
+          post[:comment_count] = post_comments.length
+
+          # query = 'SELECT * FROM `comments` WHERE `post_id` = ? ORDER BY `created_at` DESC'
+          # unless all_comments
+          #   query += ' LIMIT 3'
+          # end
+          # comments = db.prepare(query).execute(
+          #   post[:id]
+          # ).to_a
+          # comments.each do |comment|
+          #   comment[:user] = db.prepare('SELECT * FROM `users` WHERE `id` = ?').execute(
+          #     comment[:user_id]
+          #   ).first
+          # end
+          # post[:comments] = comments.reverse
+          post[:comments] = post_comments.reverse
+          post[:comments] = post[:comments][0..2] unless all_comments
 
           # post[:user] = db.prepare('SELECT * FROM `users` WHERE `id` = ?').execute(
           #   post[:user_id]
