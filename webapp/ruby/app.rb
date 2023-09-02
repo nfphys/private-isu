@@ -254,7 +254,23 @@ module Isuconp
         return 404
       end
 
-      results = db.prepare('SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `user_id` = ? ORDER BY `created_at` DESC').execute(
+      # results = db.prepare('SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `user_id` = ? ORDER BY `created_at` DESC').execute(
+      #   user[:id]
+      # )
+      results = db.prepare(
+        <<~SQL
+          SELECT
+            posts.id AS id,
+            posts.user_id AS user_id,
+            posts.body AS body,
+            posts.mime AS mime,
+            posts.created_at AS created_at
+          FROM posts
+          WHERE posts.user_id = ?
+          ORDER BY posts.created_at DESC
+          LIMIT #{POSTS_PER_PAGE}
+        SQL
+      ).execute(
         user[:id]
       )
       posts = make_posts(results)
