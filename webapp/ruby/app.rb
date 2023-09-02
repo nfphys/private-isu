@@ -120,9 +120,17 @@ module Isuconp
           end
           post[:comments] = comments.reverse
 
-          post[:user] = db.prepare('SELECT * FROM `users` WHERE `id` = ?').execute(
-            post[:user_id]
-          ).first
+          # post[:user] = db.prepare('SELECT * FROM `users` WHERE `id` = ?').execute(
+          #   post[:user_id]
+          # ).first
+          post[:user] = {
+            id: post[:user_id],
+            account_name: post[:user_account_name],
+            passhash: post[:user_passhash],
+            del_flg: post[:user_del_flg],
+            authority: post[:user_authority],
+            created_at: post[:user_created_at],
+          }
 
           posts.push(post) if post[:user][:del_flg] == 0
           break if posts.length >= POSTS_PER_PAGE
@@ -233,7 +241,12 @@ module Isuconp
             posts.user_id AS user_id,
             posts.body AS body,
             posts.created_at AS created_at,
-            posts.mime AS mime
+            posts.mime AS mime,
+            users.account_name AS user_account_name,
+            users.passhash AS user_passhash,
+            users.del_flg AS user_del_flg,
+            users.authority AS user_authority,
+            users.created_at AS user_created_at
           FROM posts LEFT OUTER JOIN users ON posts.user_id = users.id 
           WHERE users.del_flg = 0
           ORDER BY posts.created_at DESC
@@ -264,8 +277,13 @@ module Isuconp
             posts.user_id AS user_id,
             posts.body AS body,
             posts.mime AS mime,
-            posts.created_at AS created_at
-          FROM posts
+            posts.created_at AS created_at,
+            users.account_name AS user_account_name,
+            users.passhash AS user_passhash,
+            users.del_flg AS user_del_flg,
+            users.authority AS user_authority,
+            users.created_at AS user_created_at
+          FROM posts LEFT OUTER JOIN users ON posts.user_id = users.id
           WHERE posts.user_id = ?
           ORDER BY posts.created_at DESC
           LIMIT #{POSTS_PER_PAGE}
@@ -309,7 +327,12 @@ module Isuconp
             posts.user_id AS user_id,
             posts.body AS body,
             posts.mime AS mime,
-            posts.created_at AS created_at
+            posts.created_at AS created_at,
+            users.account_name AS user_account_name,
+            users.passhash AS user_passhash,
+            users.del_flg AS user_del_flg,
+            users.authority AS user_authority,
+            users.created_at AS user_created_at
           FROM posts LEFT OUTER JOIN users ON posts.user_id = users.id
           WHERE posts.created_at <= ? AND users.del_flg = 0
           ORDER BY posts.created_at DESC
@@ -324,7 +347,28 @@ module Isuconp
     end
 
     get '/posts/:id' do
-      results = db.prepare('SELECT * FROM `posts` WHERE `id` = ?').execute(
+      # results = db.prepare('SELECT * FROM `posts` WHERE `id` = ?').execute(
+      #   params[:id]
+      # )
+      results = db.prepare(
+        <<~SQL
+          SELECT
+            posts.id AS id,
+            posts.user_id AS user_id,
+            posts.body AS body,
+            posts.mime AS mime,
+            posts.created_at AS created_at,
+            users.account_name AS user_account_name,
+            users.passhash AS user_passhash,
+            users.del_flg AS user_del_flg,
+            users.authority AS user_authority,
+            users.created_at AS user_created_at
+          FROM posts LEFT OUTER JOIN users ON posts.user_id = users.id
+          WHERE posts.id = ?
+          ORDER BY posts.created_at DESC
+          LIMIT #{POSTS_PER_PAGE}
+        SQL
+      ).execute(
         params[:id]
       )
       posts = make_posts(results, all_comments: true)
