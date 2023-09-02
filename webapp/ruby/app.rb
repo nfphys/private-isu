@@ -225,7 +225,21 @@ module Isuconp
     get '/' do
       me = get_session_user()
 
-      results = db.query('SELECT `id`, `user_id`, `body`, `created_at`, `mime` FROM `posts` ORDER BY `created_at` DESC')
+      # results = db.query('SELECT `id`, `user_id`, `body`, `created_at`, `mime` FROM `posts` ORDER BY `created_at` DESC')
+      results = db.query(
+        <<~SQL
+          SELECT
+            posts.id AS id,
+            posts.user_id AS user_id,
+            posts.body AS body,
+            posts.created_at AS created_at,
+            posts.mime AS mime
+          FROM posts LEFT OUTER JOIN users ON posts.user_id = users.id 
+          WHERE users.del_flg = 0
+          ORDER BY posts.created_at DESC
+          LIMIT #{POSTS_PER_PAGE}
+        SQL
+      )
       posts = make_posts(results)
 
       erb :index, layout: :layout, locals: { posts: posts, me: me }
